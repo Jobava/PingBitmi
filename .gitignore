@@ -1,0 +1,6 @@
+venv/
+nenv/
+.pyc
+build/
+~$
+.zip
