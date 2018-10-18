@@ -1,6 +1,4 @@
-function trim(s){ 
-  return ( s || '' ).replace( /^\s+|\s+$/g, '' ); 
-}
+var wasInitialized = false;
 
 // NOTE: window.RTCPeerConnection is "not a constructor" in FF22/23
 var RTCPeerConnection = /*window.RTCPeerConnection ||*/ window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
@@ -29,6 +27,10 @@ if (RTCPeerConnection) (function () {
         else addrs[newAddr] = true;
         var displayAddrs = Object.keys(addrs).filter(function (k) { return addrs[k]; });
         document.getElementById('list').textContent = displayAddrs.join(" sau ") || "n/a";
+        if (!wasInitialized) {
+            initIPs();
+            wasInitialized = false;
+        }
     }
     
     function grepSDP(sdp) {
@@ -46,42 +48,53 @@ if (RTCPeerConnection) (function () {
             }
         });
     }
-})(); else {
-    document.getElementById('list').innerHTML = "<code>ifconfig | grep inet | grep -v inet6 | cut -d\" \" -f2 | tail -n1</code>";
-    document.getElementById('list').nextSibling.textContent = "In Chrome and Firefox your IP should display automatically, by the power of WebRTCskull.";
-}
+})();
 
-var ips = document.getElementById('list').textContent.split(' sau ');
-if (ips.length === 1) {
-    var ipComponents = ips[0].split('.');
-    if (ipComponents.length === 4) {
-        document.getElementById('c1').value = ipComponents[0];
-        document.getElementById('c2').value = ipComponents[1];
-        document.getElementById('c3').value = ipComponents[2];
-    }
-}
-
-function pingBitmi(ip) {
-    const xhr = new XMLHttpRequest();
-    const address = 'http://' + ip + '/api/version';
-    xhr.timeout = 500;
-    xhr.open('GET', address);
-    xhr.send();
-    xhr.onreadystatechange=(e)=> {
-        if (xhr.readyState === 4 && xhr.status === 403 && xhr.responseText === 'No API key provided') {
-            addBitmi(ip);
+function initIPs() {
+    let ips = document.getElementById('list').textContent.split(' sau ');
+    if (ips.length === 1) {
+        let ipComponents = ips[0].split('.');
+        if (ipComponents.length === 4) {
+            document.getElementById('c1').value = ipComponents[0];
+            document.getElementById('c2').value = ipComponents[1];
+            document.getElementById('c3').value = ipComponents[2];
         }
     }
 }
 
-function addBitmi(ip) {
+
+function pingBitmi(ipToPing) {
+    document.getElementById('msg').innerHTML = 'Se caută ' + ipToPing;
+    const xhr = new XMLHttpRequest();
+    xhr.ontimeout = function() {
+        console.log("Ping to " + ipToPing + " timed out");
+    };
+    xhr.onload = function() {
+        if (xhr.readyState === 4 && xhr.status === 403) {
+            console.log("Found expected status 403 on " + ipToPing);
+            if (xhr.responseText === 'No API key provided') {
+                console.log("Found a Bitmi at " + ipToPing);
+                addBitmi(ipToPing);
+            } else {
+                console.log("...however no answer of 'No API key provided' so this is not a Bitmi");
+            }
+        }
+    };
+    const address = 'http://' + ipToPing + '/api/version';
+    xhr.open('GET', address);
+    xhr.timeout = 4000;
+    xhr.send();
+}
+
+function addBitmi(ipToAdd) {
     let results = document.getElementById('results');
-    var li = document.createElement("li");
-    var a = document.createElement("a");
-    a.setAttribute('href', 'http://' + ip);
-    a.innerHTML = 'http://' + ip;
+    let li = document.createElement("li");
+    let a = document.createElement("a");
+    a.setAttribute('href', 'http://' + ipToAdd);
+    a.innerHTML = 'http://' + ipToAdd;
     li.appendChild(a);
     results.appendChild(li);
+    document.getElementById('msg').innerHTML = '';
 }
 
 function pingBitmis() {
@@ -91,15 +104,13 @@ function pingBitmis() {
         let addressPrefix = ipComponents[0] + '.' + ipComponents[1] + '.' + ipComponents[2];
         let rangeBegin = parseInt(document.getElementById('c4').value);
         let rangeEnd = parseInt(document.getElementById('c5').value);
-        for (let i=rangeBegin; i<= rangeEnd; ++i) {
-            let addressSuffix = i.toString();
-            letAddressToPing = addressPrefix + '.' + i;
-            setTimeout(function() {
-                document.getElementById('msg').innerHTML = 'Se caută ' + addressToPing;
-            }, 100);
-            setTimeout(addBitmi(addressToPing), 500);
+        let addresses = [];
+        for (let i=rangeBegin, j=0; i<=rangeEnd; ++i, ++j) {
+            addresses[j] = addressPrefix + '.' + i.toString();
+        }
+        for (const addressToPing of addresses) {
+            setTimeout(pingBitmi(addressToPing), Math.floor(Math.random() * 3000));
         }
     }
+    document.getElementById('msg').innerHTML = 'Se caută...';
 }
-
-pingBitmis();

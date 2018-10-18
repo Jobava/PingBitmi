@@ -1,0 +1,7 @@
+body {
+    background-image: url("../img/graph-background.png");
+    background-repeat: no-repeat;
+    background-size: auto;
+    background-attachment: fixed;
+    background-position: center;
+}
